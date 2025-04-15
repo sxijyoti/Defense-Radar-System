@@ -14,19 +14,29 @@ const int pirPin1 = 3;
 const int pirPin2 = 5;
 int state = LOW;
 unsigned long lastMotionTime = 0;
-const int motionTimeout = 2000; // 5 seconds
+const int motionTimeout = 2000; // 2 seconds
+
+// Buzzer
+const int buzzerPin = 12;  // Connected to digital pin 12
+const int buzzerTimeout = 1000; // Buzzer on time in ms
+unsigned long buzzerStartTime = 0;
+bool buzzerActive = false;
 
 void setup() {
   // Servo and Ultrasonic
   myServo.attach(11);
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
-
+  
   // PIR and LED
   pinMode(ledPin, OUTPUT);
   pinMode(pirPin1, INPUT);
   pinMode(pirPin2, INPUT);
-
+  
+  // Buzzer
+  pinMode(buzzerPin, OUTPUT);
+  digitalWrite(buzzerPin, LOW);
+  
   // Serial Communication
   Serial.begin(9600);
   delay(30000); // Allow PIR sensors to stabilize
@@ -35,59 +45,79 @@ void setup() {
 
 void loop() {
   bool motionDetected = false;
-
+  
   // Read PIR Sensors
   int val1 = digitalRead(pirPin1);
   int val2 = digitalRead(pirPin2);
-
+  
   if (val1 == HIGH || val2 == HIGH) {
     motionDetected = true;
   }
-
+  
   // Sweep Servo: 0 to 180
   for (int angle = 0; angle <= 180; angle++) {
     if (scanAndCheck(angle)) {
       motionDetected = true;
     }
   }
-
+  
   // Sweep Servo: 180 to 0
   for (int angle = 180; angle >= 0; angle--) {
     if (scanAndCheck(angle)) {
       motionDetected = true;
     }
   }
-
-  // Control LED
+  
+  // Control LED and buzzer
   if (motionDetected) {
     digitalWrite(ledPin, HIGH);
+    activateBuzzer();
     lastMotionTime = millis();
+    
     if (state == LOW) {
       Serial.println("Motion or object detected");
       state = HIGH;
     }
   }
-
+  
+  // Check if it's time to turn off LED
   if (state == HIGH && millis() - lastMotionTime > motionTimeout) {
     digitalWrite(ledPin, LOW);
     Serial.println("No motion or object detected");
     state = LOW;
+  }
+  
+  // Check if it's time to turn off buzzer
+  updateBuzzer();
+}
+
+void activateBuzzer() {
+  digitalWrite(buzzerPin, HIGH);
+  buzzerActive = true;
+  buzzerStartTime = millis();
+}
+
+void updateBuzzer() {
+  // Turn off buzzer after timeout
+  if (buzzerActive && (millis() - buzzerStartTime > buzzerTimeout)) {
+    digitalWrite(buzzerPin, LOW);
+    buzzerActive = false;
   }
 }
 
 bool scanAndCheck(int angle) {
   myServo.write(angle);
   delay(30);
-
+  
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
   digitalWrite(trigPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
-
+  
   duration = pulseIn(echoPin, HIGH);
   distance = duration * 0.034 / 2;
-
+  
   // Format: angle,distance,pir1,pir2.
   Serial.print(angle);
   Serial.print(",");
@@ -97,6 +127,6 @@ bool scanAndCheck(int angle) {
   Serial.print(",");
   Serial.print(digitalRead(pirPin2));
   Serial.println(".");
-
+  
   return (distance > 0 && distance < distanceThreshold);
 }
