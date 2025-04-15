@@ -4,19 +4,59 @@ import time
 import socket
 import math
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key
 
-# Load the .env file
+# Load .env variables
 load_dotenv()
+
+# Telegram bot setup
+ENV_PATH = ".env"
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+
+# Load multiple chat IDs
+def get_saved_chat_ids():
+    raw = os.getenv("TELEGRAM_CHAT_IDS", "")
+    return [cid.strip() for cid in raw.split(",") if cid.strip()]
+
+# Save chat IDs back to .env
+def save_chat_ids_to_env(chat_ids):
+    ids_str = ",".join(chat_ids)
+    set_key(ENV_PATH, "TELEGRAM_CHAT_IDS", ids_str)
+
+# Automatically get chat IDs via Telegram
+def get_chat_ids_from_telegram():
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
+    try:
+        res = requests.get(url, timeout=5)
+        updates = res.json()
+        ids = set()
+        for item in updates.get("result", []):
+            try:
+                cid = str(item["message"]["chat"]["id"])
+                ids.add(cid)
+            except KeyError:
+                continue
+        return list(ids)
+    except Exception as e:
+        print("❌ Failed to fetch chat IDs:", e)
+        return []
+
+# Merge and update chat ID list
+discovered_ids = get_chat_ids_from_telegram()
+saved_ids = get_saved_chat_ids()
+all_chat_ids = list(set(discovered_ids + saved_ids))
+
+if all_chat_ids != saved_ids:
+    print("🔁 New chat IDs discovered, updating .env")
+    save_chat_ids_to_env(all_chat_ids)
+
+# Use the full list for sending alerts
+TELEGRAM_CHAT_IDS = all_chat_ids
 
 # Serial port settings
 SERIAL_PORT = "/dev/ttyUSB0"  # Update if needed
 BAUD_RATE = 9600
-
-# Access variables
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-TELEGRAM_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
 # TCP Socket Setup (for Processing)
 HOST = "127.0.0.1"
@@ -27,15 +67,16 @@ ALERT_COOLDOWN = 5  # seconds
 last_alert_time = 0
 
 def send_alert(message):
-    try:
-        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
-        response = requests.post(TELEGRAM_URL, data=payload, timeout=2)
-        if response.status_code == 200:
-            print("🚀 Alert Sent!")
-        else:
-            print("❌ Failed to send alert:", response.text)
-    except Exception as e:
-        print("❌ Telegram error:", e)
+    for chat_id in TELEGRAM_CHAT_IDS:
+        try:
+            payload = {"chat_id": chat_id, "text": message}
+            response = requests.post(TELEGRAM_URL, data=payload, timeout=2)
+            if response.status_code == 200:
+                print(f"🚀 Alert Sent to {chat_id}!")
+            else:
+                print(f"❌ Failed to send to {chat_id}:", response.text)
+        except Exception as e:
+            print(f"❌ Telegram error for {chat_id}:", e)
 
 def polar_to_cartesian(angle_deg, distance_cm):
     angle_rad = math.radians(angle_deg)
@@ -48,12 +89,11 @@ def main():
 
     try:
         ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=0.1)
-        time.sleep(2)  # Wait for Arduino connection
+        time.sleep(2)
     except Exception as e:
         print("💥 Serial connection failed:", e)
         return
 
-    # Start TCP socket server
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((HOST, PORT))
     sock.listen(1)
@@ -80,7 +120,6 @@ def main():
                             pir1 = int(data[2])
                             pir2 = int(data[3])
 
-                            # Send to Processing
                             try:
                                 conn.sendall(f"{angle},{distance},{pir1},{pir2}\n".encode())
                             except Exception as e:
@@ -88,7 +127,6 @@ def main():
 
                             print(f"📤 Sent to Processing: {angle},{distance},{pir1},{pir2}")
 
-                            # Trigger alert
                             if distance < 50 or pir1 == 1 or pir2 == 1:
                                 now = time.time()
                                 if now - last_alert_time > ALERT_COOLDOWN:
