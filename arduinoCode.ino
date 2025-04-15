@@ -18,7 +18,7 @@ const int motionTimeout = 2000; // 2 seconds
 
 // Buzzer
 const int buzzerPin = 12;  // Connected to digital pin 12
-const int buzzerTimeout = 1000; // Buzzer on time in ms
+const int buzzerDuration = 3000; // Buzzer sounds for 3 seconds
 unsigned long buzzerStartTime = 0;
 bool buzzerActive = false;
 
@@ -44,34 +44,48 @@ void setup() {
 }
 
 void loop() {
-  bool motionDetected = false;
+  // Check and update buzzer state first
+  updateBuzzer();
+  
+  bool newDetection = false;
   
   // Read PIR Sensors
   int val1 = digitalRead(pirPin1);
   int val2 = digitalRead(pirPin2);
   
   if (val1 == HIGH || val2 == HIGH) {
-    motionDetected = true;
+    newDetection = true;
   }
   
   // Sweep Servo: 0 to 180
   for (int angle = 0; angle <= 180; angle++) {
+    // Check if anything is detected during the scan
     if (scanAndCheck(angle)) {
-      motionDetected = true;
+      newDetection = true;
     }
+    
+    // Check buzzer during scan to avoid delay
+    updateBuzzer();
   }
   
   // Sweep Servo: 180 to 0
   for (int angle = 180; angle >= 0; angle--) {
+    // Check if anything is detected during the scan
     if (scanAndCheck(angle)) {
-      motionDetected = true;
+      newDetection = true;
     }
+    
+    // Check buzzer during scan to avoid delay
+    updateBuzzer();
   }
   
-  // Control LED and buzzer
-  if (motionDetected) {
+  // Control LED
+  if (newDetection) {
     digitalWrite(ledPin, HIGH);
-    activateBuzzer();
+    // Activate buzzer immediately if it's not already active
+    if (!buzzerActive) {
+      activateBuzzer();
+    }
     lastMotionTime = millis();
     
     if (state == LOW) {
@@ -80,28 +94,27 @@ void loop() {
     }
   }
   
-  // Check if it's time to turn off LED
+  // Turn off LED after timeout
   if (state == HIGH && millis() - lastMotionTime > motionTimeout) {
     digitalWrite(ledPin, LOW);
     Serial.println("No motion or object detected");
     state = LOW;
   }
-  
-  // Check if it's time to turn off buzzer
-  updateBuzzer();
 }
 
 void activateBuzzer() {
   digitalWrite(buzzerPin, HIGH);
   buzzerActive = true;
   buzzerStartTime = millis();
+  Serial.println("Buzzer activated");
 }
 
 void updateBuzzer() {
-  // Turn off buzzer after timeout
-  if (buzzerActive && (millis() - buzzerStartTime > buzzerTimeout)) {
+  // Turn off buzzer after duration
+  if (buzzerActive && (millis() - buzzerStartTime > buzzerDuration)) {
     digitalWrite(buzzerPin, LOW);
     buzzerActive = false;
+    Serial.println("Buzzer deactivated");
   }
 }
 
