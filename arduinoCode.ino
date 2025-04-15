@@ -44,57 +44,55 @@ void setup() {
 }
 
 void loop() {
-  // Check and update buzzer state first
-  updateBuzzer();
-  
-  bool newDetection = false;
-  
-  // Read PIR Sensors
+  // First check PIR sensors immediately
   int val1 = digitalRead(pirPin1);
   int val2 = digitalRead(pirPin2);
   
   if (val1 == HIGH || val2 == HIGH) {
-    newDetection = true;
+    triggerDetection();
   }
   
   // Sweep Servo: 0 to 180
   for (int angle = 0; angle <= 180; angle++) {
-    // Check if anything is detected during the scan
-    if (scanAndCheck(angle)) {
-      newDetection = true;
+    myServo.write(angle);
+    delay(30);
+    
+    // Check ultrasonic
+    measureDistance();
+    
+    // Check if object detected
+    if (distance > 0 && distance < distanceThreshold) {
+      triggerDetection();
     }
     
-    // Check buzzer during scan to avoid delay
-    updateBuzzer();
+    // Send data
+    sendData(angle);
+    
+    // Check if buzzer should be turned off
+    checkBuzzer();
   }
   
   // Sweep Servo: 180 to 0
   for (int angle = 180; angle >= 0; angle--) {
-    // Check if anything is detected during the scan
-    if (scanAndCheck(angle)) {
-      newDetection = true;
+    myServo.write(angle);
+    delay(30);
+    
+    // Check ultrasonic
+    measureDistance();
+    
+    // Check if object detected
+    if (distance > 0 && distance < distanceThreshold) {
+      triggerDetection();
     }
     
-    // Check buzzer during scan to avoid delay
-    updateBuzzer();
-  }
-  
-  // Control LED
-  if (newDetection) {
-    digitalWrite(ledPin, HIGH);
-    // Activate buzzer immediately if it's not already active
-    if (!buzzerActive) {
-      activateBuzzer();
-    }
-    lastMotionTime = millis();
+    // Send data
+    sendData(angle);
     
-    if (state == LOW) {
-      Serial.println("Motion or object detected");
-      state = HIGH;
-    }
+    // Check if buzzer should be turned off
+    checkBuzzer();
   }
   
-  // Turn off LED after timeout
+  // Check if LED should be turned off
   if (state == HIGH && millis() - lastMotionTime > motionTimeout) {
     digitalWrite(ledPin, LOW);
     Serial.println("No motion or object detected");
@@ -102,14 +100,27 @@ void loop() {
   }
 }
 
-void activateBuzzer() {
-  digitalWrite(buzzerPin, HIGH);
-  buzzerActive = true;
-  buzzerStartTime = millis();
-  Serial.println("Buzzer activated");
+void triggerDetection() {
+  // Turn on LED
+  digitalWrite(ledPin, HIGH);
+  
+  // Activate buzzer immediately if not already active
+  if (!buzzerActive) {
+    digitalWrite(buzzerPin, HIGH);
+    buzzerActive = true;
+    buzzerStartTime = millis();
+    Serial.println("Buzzer activated");
+  }
+  
+  lastMotionTime = millis();
+  
+  if (state == LOW) {
+    Serial.println("Motion or object detected");
+    state = HIGH;
+  }
 }
 
-void updateBuzzer() {
+void checkBuzzer() {
   // Turn off buzzer after duration
   if (buzzerActive && (millis() - buzzerStartTime > buzzerDuration)) {
     digitalWrite(buzzerPin, LOW);
@@ -118,10 +129,7 @@ void updateBuzzer() {
   }
 }
 
-bool scanAndCheck(int angle) {
-  myServo.write(angle);
-  delay(30);
-  
+void measureDistance() {
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
   digitalWrite(trigPin, HIGH);
@@ -130,7 +138,9 @@ bool scanAndCheck(int angle) {
   
   duration = pulseIn(echoPin, HIGH);
   distance = duration * 0.034 / 2;
-  
+}
+
+void sendData(int angle) {
   // Format: angle,distance,pir1,pir2.
   Serial.print(angle);
   Serial.print(",");
@@ -140,6 +150,4 @@ bool scanAndCheck(int angle) {
   Serial.print(",");
   Serial.print(digitalRead(pirPin2));
   Serial.println(".");
-  
-  return (distance > 0 && distance < distanceThreshold);
 }
