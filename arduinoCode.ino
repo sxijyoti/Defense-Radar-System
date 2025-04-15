@@ -44,23 +44,18 @@ void setup() {
 }
 
 void loop() {
-  // First check PIR sensors immediately
-  int val1 = digitalRead(pirPin1);
-  int val2 = digitalRead(pirPin2);
-  
-  if (val1 == HIGH || val2 == HIGH) {
-    triggerDetection();
-  }
-  
   // Sweep Servo: 0 to 180
   for (int angle = 0; angle <= 180; angle++) {
+    // Check PIR sensors on every angle iteration
+    checkPIRSensors();
+    
     myServo.write(angle);
     delay(30);
     
     // Check ultrasonic
     measureDistance();
     
-    // Check if object detected
+    // Check if object detected by ultrasonic
     if (distance > 0 && distance < distanceThreshold) {
       triggerDetection();
     }
@@ -74,13 +69,16 @@ void loop() {
   
   // Sweep Servo: 180 to 0
   for (int angle = 180; angle >= 0; angle--) {
+    // Check PIR sensors on every angle iteration
+    checkPIRSensors();
+    
     myServo.write(angle);
     delay(30);
     
     // Check ultrasonic
     measureDistance();
     
-    // Check if object detected
+    // Check if object detected by ultrasonic
     if (distance > 0 && distance < distanceThreshold) {
       triggerDetection();
     }
@@ -97,6 +95,17 @@ void loop() {
     digitalWrite(ledPin, LOW);
     Serial.println("No motion or object detected");
     state = LOW;
+  }
+}
+
+void checkPIRSensors() {
+  // Check PIR sensors
+  int val1 = digitalRead(pirPin1);
+  int val2 = digitalRead(pirPin2);
+  
+  // Immediately trigger if either PIR detects motion
+  if (val1 == HIGH || val2 == HIGH) {
+    triggerDetection();
   }
 }
 
