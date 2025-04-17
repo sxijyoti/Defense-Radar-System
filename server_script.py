@@ -130,16 +130,25 @@ def main():
                             if distance < 50 or pir1 == 1 or pir2 == 1:
                                 now = time.time()
                                 if now - last_alert_time > ALERT_COOLDOWN:
-                                    x, y = polar_to_cartesian(angle, distance)
-                                    alert_msg = (
-                                        f"⚠️ Obstruction Detected!\n"
-                                        f"Angle: {angle}°\n"
-                                        f"Distance: {distance}cm\n"
-                                        f"Coordinates: ({x}, {y})\n"
-                                        f"PIR1: {pir1}, PIR2: {pir2}"
-                                    )
-                                    send_alert(alert_msg)
+
+                                    if distance < 50:
+                                        x, y = polar_to_cartesian(angle, distance)
+                                        alert_msg = (
+                                            f"⚠️ Airborne Threat Detected!\n"
+                                            f"Angle: {angle}°\n"
+                                            f"Distance: {distance}cm\n"
+                                            f"Coordinates: ({x}, {y})\n"
+                                        )
+                                        send_alert(alert_msg)
+
+                                    if pir1 == 1:
+                                        send_alert("Suspicious movement detected in Region 1")
+
+                                    if pir2 == 1:
+                                        send_alert("Suspicious movement detected in Region 2")
+
                                     last_alert_time = now
+
 
                     elif "DANGER!" in line:
                         print("⚠️ DANGER string detected in line:", line)
