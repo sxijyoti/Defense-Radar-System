@@ -10,7 +10,8 @@ Moreover, the system is integrated with a Alerting Bot System, which sends real-
 This integrated system offers both real-time detection and alerting, making it suitable for various applications in defense, surveillance, and security. By combining sensor-based motion detection, automated scanning, and remote alerting, this project presents a cost-effective solution for enhancing threat monitoring and situational awareness.
 
 ## Circuit Diagram
-![image](https://github.com/user-attachments/assets/21eccc10-a416-4a12-ad11-71ecf919d95a)
+![image](https://github.com/user-attachments/assets/810b1bde-a98f-444a-baea-ed1dd7c43c8c)
+
 
 ## To Run
 ```sh
